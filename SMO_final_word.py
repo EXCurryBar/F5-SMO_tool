@@ -1,11 +1,13 @@
 import paramiko
-from scp import SCPClient
 import time
 import xlrd
+import os
+import utils
+import multiprocessing as mp
+from scp import SCPClient
 from xlwt import Workbook
 from docx import Document
 from docx.shared import Cm
-
 
 def sys_search(con, client):
     try:
@@ -212,6 +214,10 @@ def Compare_ver(IP, user, passwd):
 
 def main():
     global doc, t0, word_nn
+    PATH = os.path.abspath(os.getcwd())
+    os.chdir("\\")
+    os.system("mkdir qkviews, ucs")  
+    os.chdir(PATH) 
     doc = Document('example.docx')
     t0 = doc.tables[0]
     word_nn = 1
