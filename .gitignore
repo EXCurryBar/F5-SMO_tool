@@ -1,3 +1,4 @@
-Dynasafe_SMO.pptx
-Example.docx
-SMO_ex.xls
+*.pptx
+*.docx
+*.xls
+*.log

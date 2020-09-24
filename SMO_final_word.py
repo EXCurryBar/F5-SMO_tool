@@ -1,13 +1,19 @@
 import paramiko
 import time
-import xlrd
 import os
 import utils
 import multiprocessing as mp
+import logging
+import pandas as pd
 from scp import SCPClient
-from xlwt import Workbook
 from docx import Document
 from docx.shared import Cm
+
+logging.basicConfig(level=logging.WARNING,
+                    format="%(asctime)s %(levelname)s %(message)s",
+                    datefmt="%Y-%m-%d %H:%M",
+                    handlers=[logging.FileHandler("SMO.log", "w", "utf-8"), ])
+
 
 def sys_search(con, client):
     try:
@@ -64,8 +70,8 @@ def paste(sys_uptime, sys_host, sys_sn, sys_ver, sys_Edit, sys_cpu, sys_tmm_mem,
     sys_host = charge(sys_host)
     sys_sn = charge(sys_sn)
     sys_ver = charge(sys_ver)
-    sys_cpu = charge(sys_cpu)
-    sys_tmm_mem = charge(sys_tmm_mem)
+    sys_cpu = sys_cpu
+    sys_tmm_mem = sys_tmm_mem
     sys_ccon = charge(sys_ccon)
     sys_ith = charge(sys_ith)
     sys_con = sys_con[:-1]
@@ -75,8 +81,8 @@ def paste(sys_uptime, sys_host, sys_sn, sys_ver, sys_Edit, sys_cpu, sys_tmm_mem,
     words("hostname", sys_host, 0)
     words("S/N", sys_sn, 1)
     words("uptime", sys_uptime+" days", 2)
-    words("Memory", sys_tmm_mem+"%", 3)
-    words("CPU", sys_cpu+"%", 4)
+    words("Memory", sys_tmm_mem, 3)
+    words("CPU", sys_cpu, 4)
     words("Active Connections", sys_con, 5)
     words("New Connections", sys_ccon+"/sec", 6)
     words("Throughput", sys_ith+"(bits/sec)", 7)
@@ -138,10 +144,17 @@ def ver_13(IP, user, passwd):
     sys_sn = sys_search(
         'tmsh show sys hardware | grep "Chassis Serial"', client)
     sys_ver = sys_search('tmsh show sys version | grep " Version"', client)
-    sys_cpu = sys_search(
-        'tmsh show sys performance system historical | grep "Utilization"', client)
-    sys_tmm_mem = sys_search(
-        'tmsh show sys performance system historical | grep "TMM Memory Used"', client)
+    try:
+        sys_data = utils.get_data(IP, user, passwd)
+    except:
+        print("連線速度過慢 :" + IP + "跳過cpu, mem")
+        logging.error("連線速度過慢 :" + IP + "跳過cpu, mem")
+    sys_tmm_mem = sys_data[0][1]
+    sys_cpu = sys_data[1][1]
+    # sys_cpu = sys_search(
+    #     'tmsh show sys performance system historical | grep "Utilization"', client)
+    # sys_tmm_mem = sys_search(
+    #     'tmsh show sys performance system historical | grep "TMM Memory Used"', client)
     sys_ccon = sys_search(
         'tmsh show sys performance connections historical | grep "Client Connections"', client)
     sys_Edit = sys_search('tmsh show sys version | grep "Edition"', client)
@@ -185,6 +198,7 @@ def ver_13(IP, user, passwd):
 def Compare_final(ex, IP, user, passwd):
     if ex == 11:
         print('程式目前適用於13版')
+        logging.warning('程式目前適用於13版' + IP)
     else:
         ver_13(IP, user, passwd)
 
@@ -206,7 +220,9 @@ def Compare_ver(IP, user, passwd):
             Compare_num = 0
         except:
             print("IP錯誤或帳密錯誤，請檢查帳密")
+            logging.error("IP錯誤或帳密錯誤，請檢查帳密:" + IP)
             decide_num = 0
+            continue
         if Compare_num == 0:
             Compare_final(int(sys_com_ver[0]), IP, user, passwd)
             decide_num = 0
@@ -216,20 +232,21 @@ def main():
     global doc, t0, word_nn
     PATH = os.path.abspath(os.getcwd())
     os.chdir("\\")
-    os.system("mkdir qkviews, ucs")  
-    os.chdir(PATH) 
+    os.system("mkdir qkviews, ucs")
+    os.chdir(PATH)
     doc = Document('example.docx')
     t0 = doc.tables[0]
     word_nn = 1
-    excel_da = xlrd.open_workbook('SMO_ex.xls')
-    table = excel_da.sheet_by_index(0)
-    for i in range(1, 5, 1):
-        IP = str(table.cell(i, 0).value)
-        user = str(table.cell(i, 1).value)
-        passwd = str(table.cell(i, 2).value)
-        print(IP, user, passwd)
-        Compare_ver(IP, user, passwd)
-        word_nn += 2
+    data = pd.read_excel("SMO_ex.xls").values.tolist()
+    for row in data:
+        IP, user, passwd = row
+        if utils.is_avail(IP, 443):
+            print(IP, user, passwd)
+            Compare_ver(IP, user, passwd)
+            word_nn += 2
+        else:
+            print("無法連線到 :", IP)
+            logging.error("無法連線到 :" + IP)
 
 
 if __name__ == "__main__":
